@@ -1,0 +1,3 @@
+[submodule "datasets"]
+	path = datasets
+	url = https://github.com/eroomer/coop_project_dataset.git

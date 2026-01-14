@@ -1,15 +1,20 @@
-from .schemas import AnalyzeResponse, DetectedObject
+from __future__ import annotations
+
+from uuid import uuid4
+
+from .schemas import AnalyzeResponse, AnalyzeResult, DetectedObject
 
 EMERGENCY_KEYWORDS = ("fire", "smoke", "accident")
+
 
 def build_stub_result(image_id: str) -> AnalyzeResponse:
     lower = image_id.lower()
 
-    objects = []
+    objects: list[DetectedObject] = []
 
-    def add(label: str, conf: float, bbox):
+    def add(label: str, conf: float, bbox_xyxy: list[int] | None):
         objects.append(
-            DetectedObject(label=label, confidence=conf, bbox_xyxy=bbox)
+            DetectedObject(label=label, confidence=conf, bbox_xyxy=bbox_xyxy)
         )
 
     # 키워드 기반 객체 생성
@@ -28,22 +33,23 @@ def build_stub_result(image_id: str) -> AnalyzeResponse:
     is_emergency = any(k in lower for k in EMERGENCY_KEYWORDS)
 
     if is_emergency:
-        priority = "high"
+        risk_level = "high"   # RiskLevel = Literal["high", "normal"]
         caption = "Emergency detected (stub)."
-        risk_score = 0.95
     else:
-        priority = "normal"
-        if objects:
-            caption = "Intrusion detected (stub)."
-            risk_score = 0.65
-        else:
-            caption = "No critical events detected (stub)."
-            risk_score = 0.05
+        risk_level = "normal"
+        caption = "Intrusion detected (stub)." if objects else "No critical events detected (stub)."
+
+    result = AnalyzeResult(
+        result_id=str(uuid4()),
+        image_id=image_id,
+        risk_level=risk_level,
+        objects=objects,
+        caption=caption,
+    )
 
     return AnalyzeResponse(
-        image_id=image_id,
-        priority=priority,
-        caption=caption,
-        objects=objects,
-        risk_score=risk_score,
+        response_id=str(uuid4()),
+        ok=True,
+        result=result,
+        error_code=None,
     )

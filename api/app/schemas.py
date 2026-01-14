@@ -1,21 +1,31 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 from typing import Literal, List, Optional
+from datetime import datetime
 
-Priority = Literal["high", "normal"]
+RiskLevel = Literal["high", "normal"]
 
 class AnalyzeRequest(BaseModel):
+    request_id: str
     image_id: str = Field(..., examples=["fire_002.jpg", "base_001.jpg"])
-    client_id: Optional[str] = None
-    ts: Optional[str] = None
+    image_base64: str
+    requested_at: datetime
+
+class AnalyzeResponse(BaseModel):
+    response_id: str
+    ok: bool
+    result: Optional["AnalyzeResult"] = None
+    error_code: Optional[str] = None
+
+class AnalyzeResult(BaseModel):
+    result_id: str
+    image_id: str
+    risk_level: RiskLevel
+    objects: List["DetectedObject"]
+    caption: str
 
 class DetectedObject(BaseModel):
     label: Literal["person", "vehicle", "fire", "smoke", "accident", "unknown"]
     confidence: float = Field(..., ge=0.0, le=1.0)
     bbox_xyxy: Optional[List[int]] = None
-
-class AnalyzeResponse(BaseModel):
-    image_id: str
-    priority: Priority
-    caption: str
-    objects: List[DetectedObject]
-    risk_score: float = Field(..., ge=0.0, le=1.0)

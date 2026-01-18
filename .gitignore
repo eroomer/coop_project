@@ -27,3 +27,6 @@ storage
 **/yolo_cfg/
 **/.cache/
 **/Ultralytics/
+
+# temp
+temp.md

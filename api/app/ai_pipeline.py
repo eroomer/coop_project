@@ -1,65 +1,57 @@
 from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any, Literal
 from PIL import Image
-import os
 import io
 import base64
 
 Label = Literal["person", "vehicle", "fire", "smoke", "accident", "unknown"]
+
+# ai pipeline의 설정을 관리하기 위한 클래스입니다.
+# 데이터 관리 표준인 @dataclass 데코레이터를 사용하고 실행 중 변경을 막기 위해 frozen=True 인자를 적용했습니다.
+@dataclass(frozen=True)
+class PipelineConfig:
+    use_yolo: bool = True
+    yolo_model: str = "yolov8n.pt"                                # dafualt: YOLOv8 Nano
+    use_blip: bool = True
+    blip_model: str = "Salesforce/blip-image-captioning-base"    # dafualt: BLIP Base
 
 class AIPipeline:
     """
     Synchronous pipeline:
       input base64 -> bytes -> PIL
       YOLOv8n -> objects
-      crop best -> BLIP-2 caption
+      crop best -> BLIP base caption
       risk_level rule (fire/smoke/accident => high else normal)
     Default: stub mode unless dependencies installed.
     """
 
-    def __init__(self):
+    # 서버 실행 시 
+    def __init__(self, cfg: PipelineConfig):
+        self.cfg = cfg
         self.mode = "stub"
-
+       
+        # YOLO
         self.yolo = None
+        if cfg.use_yolo:
+            try:
+                from ultralytics import YOLO  # type: ignore
+                self.yolo = YOLO(cfg.yolo_weights)
+            except Exception:
+                self.yolo = None
+        
+        # BLIP (base)
         self.blip_processor = None
         self.blip_model = None
-
-        # YOLO
-        try:
-            from ultralytics import YOLO  # type: ignore
-            self.yolo = YOLO("yolov8n.pt")
-            self.mode = "yolo_only"
-        except Exception:
-            self.yolo = None
-
-        # BLIP-2 (optional)
-        # - 기본값: 비활성화 (대용량 다운로드 방지)
-        # - USE_BLIP=true 일 때만 실제 로드/다운로드
-        USE_BLIP = os.getenv("USE_BLIP", "false").lower() == "true"
-
-        if USE_BLIP:
+        if cfg.use_blip:
             try:
-                import torch  # type: ignore
-                from transformers import Blip2Processor, Blip2ForConditionalGeneration  # type: ignore
-
-                # ⚠️ 이 모델은 매우 큼(자동 다운로드). 정말 필요할 때만 USE_BLIP=true로 켜기.
-                model_id = "Salesforce/blip2-opt-2.7b"
-                self.blip_processor = Blip2Processor.from_pretrained(model_id)
-                self.blip_model = Blip2ForConditionalGeneration.from_pretrained(model_id).to("cpu")
-
-                self.mode = "yolo+blip2" if self.yolo else "blip2_only"
+                from transformers import BlipProcessor, BlipForConditionalGeneration  # type: ignore
+                self.blip_processor = BlipProcessor.from_pretrained(cfg.blip_model_id)
+                self.blip_model = BlipForConditionalGeneration.from_pretrained(cfg.blip_model_id)
             except Exception:
                 self.blip_processor = None
                 self.blip_model = None
-                # YOLO만 있으면 yolo_only, 아니면 stub
-                if self.yolo:
-                    self.mode = "yolo_only"
-        else:
-            self.blip_processor = None
-            self.blip_model = None
-            if self.yolo:
-                self.mode = "yolo_only"
-
 
     @staticmethod
     def decode_base64_image(image_base64: str) -> bytes:

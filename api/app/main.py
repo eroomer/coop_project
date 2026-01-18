@@ -4,7 +4,7 @@ import uuid
 
 from .ai_pipeline import PipelineConfig, AIPipeline
 from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
-from .db import init_db, insert_image, insert_analysis
+from .db import init_db, insert_image, insert_analysis, get_analysis
 from .storage import ensure_storage_dirs, save_image_bytes
 
 def create_app(cfg: PipelineConfig) -> FastAPI:

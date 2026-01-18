@@ -1,20 +1,49 @@
 from __future__ import annotations
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Callable, TypeVar
 
 API_DIR = Path(__file__).resolve().parents[1]  # api/
 DB_PATH = API_DIR / "storage" / "app.db"
 
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+T = TypeVar("T")
+
+class DBError(RuntimeError):
+    """Database access error."""
+
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(
+        DB_PATH,
+        timeout=5.0,                # DB 연결 실패 시 5초간 더 시도
+        check_same_thread=False,
+    )
     conn.row_factory = sqlite3.Row
     return conn
 
+# DB 연결을 시도하는 함수에 반복해서 사용할 수 있도록 @contextmanager 데코레이터를 사용했습니다.
+@contextmanager
+def db_conn():
+    conn = _connect()
+    try:
+        yield conn
+        conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        raise DBError(str(e)) from e
+    finally:
+        conn.close()
+
+def with_db(op: Callable[[sqlite3.Connection], T]) -> T:
+    with db_conn() as conn:
+        return op(conn)
+
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with get_conn() as conn:
+
+    def _op(conn: sqlite3.Connection) -> None:
+        conn.execute("PRAGMA foreign_keyes=ON;")
         conn.execute("""
         CREATE TABLE IF NOT EXISTS images (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,16 +65,18 @@ def init_db() -> None:
             FOREIGN KEY(image_ref_id) REFERENCES images(id)
         );
         """)
-        conn.commit()
+
+    with_db(_op)
 
 def insert_image(image_id: str, path: str, sha256: str) -> int:
-    with get_conn() as conn:
+    def _op(conn: sqlite3.Connection) -> int:
         cur = conn.execute(
             "INSERT INTO images(image_id, path, sha256) VALUES (?, ?, ?)",
             (image_id, path, sha256),
         )
-        conn.commit()
         return int(cur.lastrowid)
+
+    return with_db(_op)
 
 def insert_analysis(
     request_id: str,
@@ -54,19 +85,22 @@ def insert_analysis(
     objects: list[dict[str, Any]],
     caption: str
 ) -> int:
-    with get_conn() as conn:
+    objects_json = json.dumps(objects, ensure_ascii=False)
+
+    def _op(conn: sqlite3.Connection) -> int:
         cur = conn.execute(
             """
             INSERT INTO analyses(request_id, image_ref_id, risk_level, objects_json, caption)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (request_id, image_ref_id, risk_level, json.dumps(objects, ensure_ascii=False), caption),
+            (request_id, image_ref_id, risk_level, objects_json, caption),
         )
-        conn.commit()
         return int(cur.lastrowid)
 
+    return with_db(_op)
+
 def get_analysis(analysis_id: int) -> dict[str, Any] | None:
-    with get_conn() as conn:
+    def _op(conn: sqlite3.Connection) -> Optional[dict[str, Any]]:
         row = conn.execute("""
             SELECT
               a.id AS analysis_id,
@@ -97,3 +131,5 @@ def get_analysis(analysis_id: int) -> dict[str, Any] | None:
             "image_path": row["image_path"],
             "image_sha256": row["image_sha256"],
         }
+
+    return with_db(_op)

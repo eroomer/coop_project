@@ -24,7 +24,6 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
           - save to local storage
           - write DB (images, analyses)
           - run sync AI pipeline (YOLO->crop->BLIP)
-          - homography mapping for bbox centers
         """
         try:
             out = pipeline.run_from_base64(req.image_base64)

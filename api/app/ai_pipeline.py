@@ -26,29 +26,25 @@ class AIPipeline:
       risk_level rule (fire/smoke/accident => high else normal)
     Default: stub mode unless dependencies installed.
     """
-
-    # 서버 실행 시 
+    # 모델 준비
     def __init__(self, cfg: PipelineConfig):
         self.cfg = cfg
-        self.mode = "stub"
-       
         # YOLO
         self.yolo = None
         if cfg.use_yolo:
             try:
                 from ultralytics import YOLO  # type: ignore
-                self.yolo = YOLO(cfg.yolo_weights)
+                self.yolo = YOLO(cfg.yolo_model)
             except Exception:
                 self.yolo = None
-        
         # BLIP (base)
         self.blip_processor = None
         self.blip_model = None
         if cfg.use_blip:
             try:
                 from transformers import BlipProcessor, BlipForConditionalGeneration  # type: ignore
-                self.blip_processor = BlipProcessor.from_pretrained(cfg.blip_model_id)
-                self.blip_model = BlipForConditionalGeneration.from_pretrained(cfg.blip_model_id)
+                self.blip_processor = BlipProcessor.from_pretrained(cfg.blip_model)
+                self.blip_model = BlipForConditionalGeneration.from_pretrained(cfg.blip_model)
             except Exception:
                 self.blip_processor = None
                 self.blip_model = None
@@ -86,6 +82,14 @@ class AIPipeline:
             return "vehicle"
         return "unknown"
 
+    @staticmethod
+    def _infer_risk(objects: list[dict[str, Any]]) -> str:
+        # 3주차 명세에 맞춰 “fire/smoke/accident 키워드” 중심으로 high 판단
+        labels = {o.get("label") for o in objects}
+        if "fire" in labels or "smoke" in labels or "accident" in labels:
+            return "high"
+        return "normal"
+
     def _run_yolo(self, pil: Image.Image) -> list[dict[str, Any]]:
         if self.yolo is None:
             # stub: 예제용
@@ -104,7 +108,7 @@ class AIPipeline:
             objects.append({"label": label, "confidence": conf, "bbox_xyxy": xyxy})
         return objects
 
-    def _run_blip2(self, pil: Image.Image) -> str:
+    def _run_blip(self, pil: Image.Image) -> str:
         if self.blip_model is None or self.blip_processor is None:
             return "stub caption: models not installed."
 
@@ -113,21 +117,13 @@ class AIPipeline:
         caption = self.blip_processor.decode(out[0], skip_special_tokens=True)
         return caption
 
-    @staticmethod
-    def _infer_risk(objects: list[dict[str, Any]]) -> str:
-        # 3주차 명세에 맞춰 “fire/smoke/accident 키워드” 중심으로 high 판단
-        labels = {o.get("label") for o in objects}
-        if "fire" in labels or "smoke" in labels or "accident" in labels:
-            return "high"
-        return "normal"
-
     def run_from_base64(self, image_base64: str) -> dict[str, Any]:
         image_bytes = self.decode_base64_image(image_base64)
         pil = self.pil_from_bytes(image_bytes)
 
         objects = self._run_yolo(pil)
         crop = self._crop_best(pil, objects)
-        caption = self._run_blip2(crop)
+        caption = self._run_blip(crop)
 
         risk_level = self._infer_risk(objects)
 
@@ -135,6 +131,5 @@ class AIPipeline:
             "objects": objects,
             "caption": caption,
             "risk_level": risk_level,
-            "pipeline_mode": self.mode,
-            "image_bytes": image_bytes,  # 저장용으로 main.py에서 사용
+            "image_bytes": image_bytes,
         }

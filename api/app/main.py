@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+import threading
 import uuid
 
 from .ai_pipeline import PipelineConfig, AIPipeline
@@ -15,6 +16,10 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
     def on_startup():
         ensure_storage_dirs()
         init_db()
+        # pipeline을 app state에 저장 (프로세스당 1개)
+        app.state.pipeline = AIPipeline(cfg)
+        # thread-safe를 위해 lock도 같이 저장
+        app.state.pipeline_lock = threading.Lock()
 
     @app.get("/health")
     def health():
@@ -23,12 +28,15 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index():
         # Default path 처리 로직
-        return 
-        """
+        return """
+        <!doctype html>
+        <html lang="ko">
+        <body>API 서버입니다.</body>
+        </html>
         """
 
     @app.post("/v1/analyze", response_model=AnalyzeResponse)
-    def analyze(req: AnalyzeRequest):
+    def analyze(req: AnalyzeRequest, request: Request):
         """
         Week3 behavior:
           - decode base64 image
@@ -37,8 +45,13 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
           - run sync AI pipeline (YOLO->crop->BLIP)
         """
         try:
+            # 0) AI pipeline에 접근하기 전 lock 획득 
+            lock: threading.Lock = request.app.state.pipeline_lock
+
             # 1) AI pipeline 실행
-            out = pipeline.run_from_base64(req.image_base64)
+            with lock:
+                pipeline: AIPipeline = request.app.state.pipeline
+                out = pipeline.run_from_base64(req.image_base64)
             image_bytes = out["image_bytes"]
             objects = out["objects"]
             caption = out["caption"]

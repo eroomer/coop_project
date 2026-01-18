@@ -1,25 +1,29 @@
-# ==============================
 # Python runtime artifacts
-# ==============================
 __pycache__/
 *.pyc
 
-# ==============================
 # Python virtual environment
-# ==============================
 .venv/
 
-# ==============================
 # Environment variables (local only)
-# ==============================
 .env
 
-# ==============================
 # Editor settings
-# ==============================
 .vscode/
 
-# ==============================
 # OS-specific
-# ==============================
 .DS_Store
+
+# Local storage
+storage
+
+# SQLite DB files
+*.db
+*.sqlite
+*.sqlite3
+
+# Ultralytics / HF caches
+**/hf_cache/
+**/yolo_cfg/
+**/.cache/
+**/Ultralytics/

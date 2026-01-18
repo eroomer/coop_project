@@ -3,6 +3,8 @@ from pathlib import Path
 import hashlib
 import time
 
+# 실제 이미지 파일 저장 (db에는 파일 경로 저장)
+
 # api/ 기준 경로
 API_DIR = Path(__file__).resolve().parents[1]          # api/app -> api
 STORAGE_DIR = API_DIR / "storage"

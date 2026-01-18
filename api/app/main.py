@@ -4,10 +4,21 @@ import uuid
 
 from .ai_pipeline import PipelineConfig, AIPipeline
 from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
+from .db import init_db, insert_image, insert_analysis
+from .storage import ensure_storage_dirs, save_image_bytes
 
 def create_app(cfg: PipelineConfig) -> FastAPI:
     app = FastAPI(title="3D Digital Twin AI API", version="1.0.0")
     pipeline = AIPipeline(cfg)
+
+    @app.on_event("startup")
+    def on_startup():
+        ensure_storage_dirs()
+        init_db()
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok", "yolo": cfg.use_yolo, "blip": cfg.use_blip}
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -26,6 +37,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
           - run sync AI pipeline (YOLO->crop->BLIP)
         """
         try:
+            # 1) AI pipeline 실행
             out = pipeline.run_from_base64(req.image_base64)
             image_bytes = out["image_bytes"]
             objects = out["objects"]
@@ -40,8 +52,26 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                     "bbox_xyxy": o.get("bbox_xyxy"),
                 })
 
+            # 2) 파일 저장 (storage.py)
+            rel_path, sha256 = save_image_bytes(image_bytes, ext=".jpg")
+
+            # 4) DB 저장 (db.py)
+            image_ref_id = insert_image(
+                image_id=req.image_id,
+                path=rel_path,
+                sha256=sha256,
+            )
+
+            analysis_id = insert_analysis(
+                request_id=req.request_id,       # trace용
+                image_ref_id=image_ref_id,
+                risk_level=risk_level,
+                objects=safe_objects,
+                caption=caption,        # DB schema가 NOT NULL이면 안전하게 빈 문자열
+            )
+
             result = AnalyzeResult(
-                result_id=str(uuid.uuid4()),
+                result_id=str(analysis_id),
                 image_id=req.image_id,
                 risk_level=risk_level,  # "high" | "normal"
                 objects=safe_objects,
@@ -63,9 +93,15 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 error_code=f"INTERNAL_ERROR: {type(e).__name__}",
             )
 
-    @app.get("/health")
-    def health():
-        return {"status": "ok", "yolo": cfg.use_yolo, "blip": cfg.use_blip}
+    @app.get("/v1/result/{analysis_id}")
+    def get_result(analysis_id: int):
+        """
+        DB 조회용
+        """
+        data = get_analysis(analysis_id)
+        if data is None:
+            return {"ok": False, "error_code": "NOT_FOUND"}
+        return {"ok": True, "data": data}
 
     return app
 

@@ -1,110 +1,146 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from .schemas import AnalyzeRequest, AnalyzeResponse
-from .stub_data import build_stub_result
+import threading
+import uuid
 
-app = FastAPI(
-    title="3D Digital Twin AI API (Mock)",
-    version="0.1.0",
-    description="Mock server using keyword-based emergency detection.",
-)
+from .ai_pipeline import PipelineConfig, AIPipeline
+from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
+from .db import init_db, insert_image, insert_analysis, get_analysis
+from .storage import ensure_storage_dirs, save_image_bytes
 
-@app.get("/", response_class=HTMLResponse)
-def index():
-    # analyze 테스트 UI
-    return """
-<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI API Mock UI</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 760px; }
-    label { display: block; margin-top: 12px; font-weight: 600; }
-    input, textarea, button { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
-    textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    button { cursor: pointer; margin-top: 14px; }
-    pre { background: #0b1020; color: #e6e6e6; padding: 12px; border-radius: 12px; overflow: auto; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .hint { color: #555; font-size: 0.92rem; margin-top: 6px; }
-  </style>
-</head>
-<body>
-  <h2>API 서버입니다.</h2>
+def create_app(cfg: PipelineConfig) -> FastAPI:
+    app = FastAPI(title="3D Digital Twin AI API", version="1.0.0")
+    pipeline = AIPipeline(cfg)
 
-  <div class="card">
-    <div class="row">
-      <div>
-        <label for="request_id">request_id</label>
-        <input id="request_id" value="req-001" />
-      </div>
-      <div>
-        <label for="image_id">image_id</label>
-        <input id="image_id" value="fire_002.jpg" />
-        <div class="hint">fire/smoke/accident 포함 시 high로 나옴(stub)</div>
-      </div>
-    </div>
+    @app.on_event("startup")
+    def on_startup():
+        ensure_storage_dirs()
+        init_db()
+        # pipeline을 app state에 저장 (프로세스당 1개)
+        app.state.pipeline = AIPipeline(cfg)
+        # thread-safe를 위해 lock도 같이 저장
+        app.state.pipeline_lock = threading.Lock()
 
-    <label for="requested_at">requested_at</label>
-    <input id="requested_at" />
+    @app.get("/health")
+    def health():
+        return {"status": "ok", "yolo": cfg.use_yolo, "blip": cfg.use_blip}
 
-    <label for="image_base64">image_base64</label>
-    <textarea id="image_base64" rows="4" placeholder="base64 문자열 (테스트용으로 비워도 됨)"></textarea>
+    @app.get("/", response_class=HTMLResponse)
+    def index():
+        # Default path 처리 로직
+        return """
+        <!doctype html>
+        <html lang="ko">
+        <body>API 서버입니다.</body>
+        </html>
+        """
 
-    <button onclick="sendAnalyze()">POST /v1/analyze 보내기</button>
+    @app.post("/v1/analyze", response_model=AnalyzeResponse)
+    def analyze(req: AnalyzeRequest, request: Request):
+        """
+        Week3 behavior:
+          - decode base64 image
+          - save to local storage
+          - write DB (images, analyses)
+          - run sync AI pipeline (YOLO->crop->BLIP)
+        """
+        try:
+            # 0) AI pipeline에 접근하기 전 lock 획득 
+            lock: threading.Lock = request.app.state.pipeline_lock
 
-    <label>Response</label>
-    <pre id="out">{}</pre>
+            # 1) AI pipeline 실행
+            with lock:
+                pipeline: AIPipeline = request.app.state.pipeline
+                out = pipeline.run_from_base64(req.image_base64)
+            image_bytes = out["image_bytes"]
+            objects = out["objects"]
+            caption = out["caption"]
+            risk_level = out["risk_level"]
 
-    <div class="hint">
-      링크: <a href="/docs">/docs</a> · <a href="/redoc">/redoc</a> · <a href="/health">/health</a>
-    </div>
-  </div>
+            safe_objects = []
+            for o in objects:
+                safe_objects.append({
+                    "label": o.get("label", "unknown"),
+                    "confidence": float(o.get("confidence", 0.0)),
+                    "bbox_xyxy": o.get("bbox_xyxy"),
+                })
 
-<script>
-  // 페이지 로드시 requested_at 기본값 채우기
-  document.getElementById("requested_at").value = new Date().toISOString();
+            # 2) 파일 저장 (storage.py)
+            rel_path, sha256 = save_image_bytes(image_bytes, ext=".jpg")
 
-  async function sendAnalyze() {
-    const body = {
-      request_id: document.getElementById("request_id").value,
-      image_id: document.getElementById("image_id").value,
-      image_base64: document.getElementById("image_base64").value || "stub",
-      requested_at: document.getElementById("requested_at").value || new Date().toISOString()
-    };
+            # 4) DB 저장 (db.py)
+            image_ref_id = insert_image(
+                image_id=req.image_id,
+                path=rel_path,
+                sha256=sha256,
+            )
 
-    const out = document.getElementById("out");
-    out.textContent = "Loading...";
+            analysis_id = insert_analysis(
+                request_id=req.request_id,       # trace용
+                image_ref_id=image_ref_id,
+                risk_level=risk_level,
+                objects=safe_objects,
+                caption=caption,        # DB schema가 NOT NULL이면 안전하게 빈 문자열
+            )
 
-    try {
-      const res = await fetch("/v1/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+            result = AnalyzeResult(
+                result_id=str(analysis_id),
+                image_id=req.image_id,
+                risk_level=risk_level,  # "high" | "normal"
+                objects=safe_objects,
+                caption=caption,
+            )
 
-      const text = await res.text();
-      try {
-        out.textContent = JSON.stringify(JSON.parse(text), null, 2);
-      } catch {
-        out.textContent = text;
-      }
-    } catch (e) {
-      out.textContent = String(e);
-    }
-  }
-</script>
-</body>
-</html>
-"""
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=True,
+                result=result,
+                error_code=None,
+            )
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+        except Exception as e:
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=False,
+                result=None,
+                error_code=f"INTERNAL_ERROR: {type(e).__name__}",
+            )
 
+    @app.get("/v1/result/{analysis_id}")
+    def get_result(analysis_id: int):
+        """
+        DB 조회용
+        """
+        data = get_analysis(analysis_id)
+        if data is None:
+            return {"ok": False, "error_code": "NOT_FOUND"}
+        return {"ok": True, "data": data}
 
-@app.post("/v1/analyze", response_model=AnalyzeResponse)
-def analyze(req: AnalyzeRequest):
-    return build_stub_result(req.image_id)
+    return app
+
+def main():
+    import argparse
+    import uvicorn
+    # 서버 실행 시 입력한 argument 파싱
+    p = argparse.ArgumentParser()
+    p.add_argument("--no-yolo", action="store_true")
+    p.add_argument("--yolo-model", default="yolov8n.pt")
+    p.add_argument("--no-blip", action="store_true")
+    p.add_argument("--blip-model", default="Salesforce/blip-image-captioning-base")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--reload", action="store_true")
+    args = p.parse_args()
+
+    cfg = PipelineConfig(
+        use_yolo        = not args.no_yolo,
+        yolo_model      = args.yolo_model,
+        use_blip        = not args.no_blip,
+        blip_model      = args.blip_model,
+    )
+
+    uvicorn.run(create_app(cfg), host=args.host, port=args.port, reload=args.reload)
+
+if __name__ == "__main__":
+    main()
+

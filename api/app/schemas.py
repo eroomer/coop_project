@@ -10,7 +10,7 @@ class AnalyzeRequest(BaseModel):
     request_id: str
     image_id: str = Field(..., examples=["fire_002.jpg", "base_001.jpg"])
     image_base64: str
-    requested_at: datetime
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class AnalyzeResponse(BaseModel):
     response_id: str

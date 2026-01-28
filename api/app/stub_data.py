@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from .schemas import AnalyzeResponse, AnalyzeResult, DetectedObject
+from app.schemas import AnalyzeResponse, AnalyzeResult, DetectedObject
 
 EMERGENCY_KEYWORDS = ("fire", "smoke", "accident")
 

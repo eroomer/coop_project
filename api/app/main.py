@@ -3,13 +3,16 @@ from fastapi.responses import HTMLResponse
 import threading
 import uuid
 
-from .ai_pipeline import PipelineConfig, AIPipeline
-from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
-from .db import init_db, insert_image, insert_analysis, get_analysis
-from .storage import ensure_storage_dirs, save_image_bytes
+from app.ai.pipeline import PipelineConfig, AIPipeline
+from app.schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse
+from app.infra.db import init_db, insert_image, insert_analysis, get_analysis
+from app.infra.storage import ensure_storage_dirs, save_image_bytes
+
+from app.celery.task import analyze_task
+from app.celery.app import celery_app
 
 def create_app(cfg: PipelineConfig) -> FastAPI:
-    app = FastAPI(title="3D Digital Twin AI API", version="1.0.0")
+    app = FastAPI(title="3D Digital Twin AI API", version="1.1.0")
     pipeline = AIPipeline(cfg)
 
     @app.on_event("startup")
@@ -106,6 +109,25 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 error_code=f"INTERNAL_ERROR: {type(e).__name__}",
             )
 
+    @app.post('/v1/analyze_async', response_model=AnalyzeAsyncResponse)
+    def analyze_async(req: AnalyzeRequest):
+        # 우선순위 규칙: image_id에 emergency 포함이면 긴급 큐
+        queue_name = "analyze.emergency" if "emergency" in req.image_id else "analyze.default"
+
+        # Celery task를 특정 큐로 라우팅 (Redis에 해당 큐로 저장됨)
+        async_result = analyze_task.apply_async(
+            args=[req.request_id, req.image_id, req.image_base64],
+            queue=queue_name,
+        )
+
+        return AnalyzeAsyncResponse(
+            response_id=str(uuid.uuid4()),
+            ok=True,
+            task_id=async_result.id,
+            queue=queue_name,
+            error_code=None,
+        )
+    
     @app.get("/v1/result/{analysis_id}")
     def get_result(analysis_id: int):
         """
@@ -115,14 +137,54 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
         if data is None:
             return {"ok": False, "error_code": "NOT_FOUND"}
         return {"ok": True, "data": data}
+    
+    @app.get("/v1/result_async/{task_id}", response_model=AnalyzeResponse)
+    def result_async(task_id: str):
+        """
+        Celery task_id로 비동기 분석 결과 조회
+        """
+        ar = AsyncResult(task_id, app=celery_app)
+
+        # 아직 실행 전/실행 중
+        if ar.state in ("PENDING", "RECEIVED", "STARTED", "RETRY"):
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=True,
+                result=None,
+                error_code=None,
+            )
+
+        # 실패
+        if ar.state == "FAILURE":
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=False,
+                result=None,
+                error_code="INTERNAL_ERROR",
+            )
+
+        # 성공
+        try:
+            payload = ar.get()
+        except Exception:
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=False,
+                result=None,
+                error_code="INTERNAL_ERROR",
+            )
+
+        return payload
 
     return app
 
 def main():
     import argparse
     import uvicorn
+    from app.infra.config import load_cfg_from_file
     # 서버 실행 시 입력한 argument 파싱
     p = argparse.ArgumentParser()
+    p.add_argument("--config", default="pipeline_config.json")
     p.add_argument("--no-yolo", action="store_true")
     p.add_argument("--yolo-model", default="yolov8n.pt")
     p.add_argument("--no-blip", action="store_true")
@@ -132,12 +194,18 @@ def main():
     p.add_argument("--reload", action="store_true")
     args = p.parse_args()
 
-    cfg = PipelineConfig(
-        use_yolo        = not args.no_yolo,
-        yolo_model      = args.yolo_model,
-        use_blip        = not args.no_blip,
-        blip_model      = args.blip_model,
-    )
+    # 1) 기본 cfg는 파일에서 로드
+    cfg = load_cfg_from_file(args.config)
+
+    # 2) CLI 인자로 override (있을 때만)
+    if args.no_yolo:
+        cfg.use_yolo = False
+    if args.yolo_model is not None:
+        cfg.yolo_model = args.yolo_model
+    if args.no_blip:
+        cfg.use_blip = False
+    if args.blip_model is not None:
+        cfg.blip_model = args.blip_model
 
     uvicorn.run(create_app(cfg), host=args.host, port=args.port, reload=args.reload)
 

@@ -29,3 +29,10 @@ class DetectedObject(BaseModel):
     label: Literal["person", "vehicle", "fire", "smoke", "accident", "unknown"]
     confidence: float = Field(..., ge=0.0, le=1.0)
     bbox_xyxy: Optional[List[int]] = None
+
+class AnalyzeAsyncResponse(BaseModel):
+    response_id: str
+    ok: bool
+    task_id: str
+    queue: str
+    error_code: str | None = None

@@ -17,9 +17,6 @@ __pycache__/
 # Local storage
 storage
 
-# Yolo result
-runs/detect/
-
 # SQLite DB files
 *.db
 *.sqlite
@@ -32,5 +29,5 @@ runs/detect/
 **/Ultralytics/
 
 # temp
-temp.txt
+temp.md
 img.b64

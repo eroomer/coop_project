@@ -1,0 +1,6 @@
+{
+    "use_yolo": true,
+    "yolo_model": "yolov8n.pt",
+    "use_blip": true,
+    "blip_model": "Salesforce/blip-image-captioning-base"
+}

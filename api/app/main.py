@@ -116,7 +116,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
 
         # Celery task를 특정 큐로 라우팅 (Redis에 해당 큐로 저장됨)
         async_result = analyze_task.apply_async(
-            args=[req.request_id, req.image_id],
+            args=[req.request_id, req.image_id, req.image_base64],
             queue=queue_name,
         )
 
@@ -136,6 +136,44 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
         if data is None:
             return {"ok": False, "error_code": "NOT_FOUND"}
         return {"ok": True, "data": data}
+    
+    @app.get("/v1/result_async/{task_id}", response_model=AnalyzeResponse)
+    def result_async(task_id: str):
+        """
+        Celery task_id로 비동기 분석 결과 조회
+        """
+        ar = AsyncResult(task_id, app=celery_app)
+
+        # 아직 실행 전/실행 중
+        if ar.state in ("PENDING", "RECEIVED", "STARTED", "RETRY"):
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=True,
+                result=None,
+                error_code=None,
+            )
+
+        # 실패
+        if ar.state == "FAILURE":
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=False,
+                result=None,
+                error_code="INTERNAL_ERROR",
+            )
+
+        # 성공
+        try:
+            payload = ar.get()
+        except Exception:
+            return AnalyzeResponse(
+                response_id=str(uuid.uuid4()),
+                ok=False,
+                result=None,
+                error_code="INTERNAL_ERROR",
+            )
+
+        return payload
 
     return app
 

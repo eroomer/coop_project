@@ -9,8 +9,8 @@ import base64
 Label = Literal["person", "vehicle", "fire", "smoke", "accident", "unknown"]
 
 # ai pipeline의 설정을 관리하기 위한 클래스입니다.
-# 데이터 관리 표준인 @dataclass 데코레이터를 사용하고 실행 중 변경을 막기 위해 frozen=True 인자를 적용했습니다.
-@dataclass(frozen=True)
+# 데이터 관리 표준인 @dataclass 데코레이터를 사용했습니다.
+@dataclass
 class PipelineConfig:
     use_yolo: bool = True
     yolo_model: str = "yolov8n.pt"                                # dafualt: YOLOv8 Nano

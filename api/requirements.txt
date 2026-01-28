@@ -27,3 +27,7 @@ python-multipart
 transformers
 torch
 pillow
+
+# For asynchronous worker
+celery[redis]
+redis

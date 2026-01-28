@@ -38,10 +38,29 @@ AI 모델 자체(YOLO, BLIP 등)는 교체 가능하지만,
 ```text
 api/
 ├─ app/
-│  ├─ main.py        # FastAPI 엔트리포인트
-│  ├─ schemas.py     # 요청/응답 데이터 모델 (API Contract)
-│  └─ stub_data.py   # AI 연동 전 단계의 임시 추론 로직
-├─ .venv/            # 로컬 개발용 Python 가상환경
-├─ requirements.txt  # API 서버 의존성 목록
-├─ run.sh            # API 서버 실행 스크립트
+│  ├─ ai/
+│  │  ├─ homography.py      # homography 모듈
+│  │  └─ pipeline.py        # ai model pipeline
+│  ├─ celery/
+│  │  ├─ app.py             # celery worker 엔트리포인트
+│  │  ├─ signal.py          # worker pipeline 생성 위한 cfg 전달
+│  │  ├─ task.py            # worker analyze task
+│  │  └─ worker_state.py    # worker 내부 state
+│  ├─ infra/
+│  │  ├─ config.py          # pipeline_config.json read
+│  │  ├─ db.py              # db 모듈
+│  │  └─ storage.py         # file storage 모듈
+│  ├─ main.py               # FastAPI 엔트리포인트
+│  ├─ schemas.py            # 요청/응답 데이터 모델 (API Contract)
+│  ├─ stub_data.py          # AI 연동 전 단계의 임시 추론 로직
+│  └─ test_homography.py    # homography 기능 test
+├─ scripts/
+│  ├─ run_api               # api 서버 실행 스크립트
+│  ├─ run_locust            # locust 실행 스크립트
+│  └─ run_worker            # celery worker 실행 스크립트
+├─ .venv/                   # 로컬 개발용 Python 가상환경
+├─ locustfile.py            # locust 코드
+├─ pipeline_config.json     # pipeline 생성 시 설정
+├─ requirements.txt         # 프로젝트 의존성 목록
+├─ yolov8n.py               # YOLOv8 nano checkpoint
 └─ README.md

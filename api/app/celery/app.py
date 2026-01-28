@@ -7,7 +7,7 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    include=["app.task"],
+    include=["app.celery.task"],
     task_default_queue="analyze.default",
     # prefetch 방지하여 우선 처리 순서 보장
     worker_prefetch_multiplier=1,

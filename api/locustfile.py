@@ -23,7 +23,7 @@ IMAGE_B64 = load_image_base64()
 
 class BasicUser(HttpUser):
     host = "http://127.0.0.1:8000"
-    wait_time = between(5, 5)       # 각 유저의 요청 주기
+    wait_time = between(1, 1)       # 각 유저가 1초마다 요청
 
     # @task
     # def health_test(self):

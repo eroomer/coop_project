@@ -8,6 +8,9 @@ from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
 from .db import init_db, insert_image, insert_analysis, get_analysis
 from .storage import ensure_storage_dirs, save_image_bytes
 
+from app.task import analyze_task
+from app.celery_app import celery_app
+
 def create_app(cfg: PipelineConfig) -> FastAPI:
     app = FastAPI(title="3D Digital Twin AI API", version="1.0.0")
     pipeline = AIPipeline(cfg)
@@ -106,6 +109,24 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 error_code=f"INTERNAL_ERROR: {type(e).__name__}",
             )
 
+    @app.post('v1/analyze_async', response_model=AnalyzeResponse)
+    def analyze_async(req: AnalyzeRequest):
+        # 우선순위 규칙: image_id에 emergency 포함이면 긴급 큐
+        queue_name = "analyze.emergency" if "emergency" in req.image_id else "analyze.default"
+
+        # Celery task를 특정 큐로 라우팅 (Redis에 해당 큐로 저장됨)
+        async_result = analyze_task.apply_async(
+            args=[req.request_id, req.image_id],
+            queue=queue_name,
+        )
+
+        return {
+            "request_id": req.request_id,
+            "image_id": req.image_id,
+            "queue": queue_name,
+            "task_id": async_result.id,
+        }
+    
     @app.get("/v1/result/{analysis_id}")
     def get_result(analysis_id: int):
         """
@@ -121,8 +142,12 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
 def main():
     import argparse
     import uvicorn
+    import json
+    import os
+    from app.config import load_cfg_from_file
     # 서버 실행 시 입력한 argument 파싱
     p = argparse.ArgumentParser()
+    p.add_argument("--config", default="pipeline_config.json")
     p.add_argument("--no-yolo", action="store_true")
     p.add_argument("--yolo-model", default="yolov8n.pt")
     p.add_argument("--no-blip", action="store_true")
@@ -132,11 +157,22 @@ def main():
     p.add_argument("--reload", action="store_true")
     args = p.parse_args()
 
-    cfg = PipelineConfig(
-        use_yolo        = not args.no_yolo,
-        yolo_model      = args.yolo_model,
-        use_blip        = not args.no_blip,
-        blip_model      = args.blip_model,
+    # 1) 기본 cfg는 파일에서 로드
+    cfg = load_cfg_from_file(args.config)
+
+    # 2) CLI 인자로 override (있을 때만)
+    if args.no_yolo:
+        cfg.use_yolo = False
+    if args.yolo_model is not None:
+        cfg.yolo_model = args.yolo_model
+    if args.no_blip:
+        cfg.use_blip = False
+    if args.blip_model is not None:
+        cfg.blip_model = args.blip_model
+
+    # 3) Celery worker용으로 env에 직렬화해서 공유
+    os.environ["PIPELINE_CFG_JSON"] = json.dumps(
+        cfg.model_dump() if hasattr(cfg, "model_dump") else cfg.__dict__
     )
 
     uvicorn.run(create_app(cfg), host=args.host, port=args.port, reload=args.reload)

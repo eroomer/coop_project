@@ -4,24 +4,24 @@ import uuid
 import app.celery_signal
 
 from app.celery_app import celery_app
-from app.worker_state import pipeline, pipeline_lock
+import app.worker_state as ws
 
 from app.storage import save_image_bytes
 from app.db import insert_image, insert_analysis
 
 
-@celery_app.task(name="app.tasks.analyze_task")
+@celery_app.task(name="app.task.analyze_task")
 def analyze_task(request_id: str, image_id: str, image_base64: str):
     """
     기존 동기 analyze와 동일한 동작을 Celery worker에서 수행.
     (YOLO->crop->BLIP -> storage 저장 -> DB 저장)
     """
-    if pipeline is None:
+    if ws.pipeline is None:
         raise RuntimeError("Worker pipeline is not initialized. Check celery_signals/worker init.")
 
     # 1) AI pipeline 실행 (프로세스 내 1개 pipeline에 대해 lock 보호)
-    with pipeline_lock:
-        out = pipeline.run_from_base64(image_base64)
+    with ws.pipeline_lock:
+        out = ws.pipeline.run_from_base64(image_base64)
 
     image_bytes = out["image_bytes"]
     objects = out["objects"]

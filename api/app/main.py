@@ -12,7 +12,7 @@ from app.task import analyze_task
 from app.celery_app import celery_app
 
 def create_app(cfg: PipelineConfig) -> FastAPI:
-    app = FastAPI(title="3D Digital Twin AI API", version="1.0.0")
+    app = FastAPI(title="3D Digital Twin AI API", version="1.1.0")
     pipeline = AIPipeline(cfg)
 
     @app.on_event("startup")

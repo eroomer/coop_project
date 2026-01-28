@@ -3,13 +3,13 @@ from fastapi.responses import HTMLResponse
 import threading
 import uuid
 
-from .ai_pipeline import PipelineConfig, AIPipeline
-from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse
-from .db import init_db, insert_image, insert_analysis, get_analysis
-from .storage import ensure_storage_dirs, save_image_bytes
+from app.ai.pipeline import PipelineConfig, AIPipeline
+from app.schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse
+from app.infra.db import init_db, insert_image, insert_analysis, get_analysis
+from app.infra.storage import ensure_storage_dirs, save_image_bytes
 
-from app.task import analyze_task
-from app.celery_app import celery_app
+from app.celery.task import analyze_task
+from app.celery.app import celery_app
 
 def create_app(cfg: PipelineConfig) -> FastAPI:
     app = FastAPI(title="3D Digital Twin AI API", version="1.1.0")
@@ -181,7 +181,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
 def main():
     import argparse
     import uvicorn
-    from app.config import load_cfg_from_file
+    from app.infra.config import load_cfg_from_file
     # 서버 실행 시 입력한 argument 파싱
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="pipeline_config.json")

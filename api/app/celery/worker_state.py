@@ -1,7 +1,7 @@
 import threading
 from typing import Optional
 
-from app.ai_pipeline import AIPipeline, PipelineConfig
+from app.ai.pipeline import AIPipeline, PipelineConfig
 
 pipeline_lock = threading.Lock()
 pipeline: Optional[AIPipeline] = None

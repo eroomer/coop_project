@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional, Callable, TypeVar
 
-API_DIR = Path(__file__).resolve().parents[1]  # api/
+API_DIR = Path(__file__).resolve().parents[2]  # api/
 DB_PATH = API_DIR / "storage" / "app.db"
 
 T = TypeVar("T")

@@ -4,7 +4,7 @@ import threading
 import uuid
 
 from .ai_pipeline import PipelineConfig, AIPipeline
-from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult
+from .schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse
 from .db import init_db, insert_image, insert_analysis, get_analysis
 from .storage import ensure_storage_dirs, save_image_bytes
 
@@ -109,7 +109,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 error_code=f"INTERNAL_ERROR: {type(e).__name__}",
             )
 
-    @app.post('v1/analyze_async', response_model=AnalyzeResponse)
+    @app.post('/v1/analyze_async', response_model=AnalyzeAsyncResponse)
     def analyze_async(req: AnalyzeRequest):
         # 우선순위 규칙: image_id에 emergency 포함이면 긴급 큐
         queue_name = "analyze.emergency" if "emergency" in req.image_id else "analyze.default"
@@ -120,12 +120,13 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
             queue=queue_name,
         )
 
-        return {
-            "request_id": req.request_id,
-            "image_id": req.image_id,
-            "queue": queue_name,
-            "task_id": async_result.id,
-        }
+        return AnalyzeAsyncResponse(
+            response_id=str(uuid.uuid4()),
+            ok=True,
+            task_id=async_result.id,
+            queue=queue_name,
+            error_code=None,
+        )
     
     @app.get("/v1/result/{analysis_id}")
     def get_result(analysis_id: int):
@@ -180,8 +181,6 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
 def main():
     import argparse
     import uvicorn
-    import json
-    import os
     from app.config import load_cfg_from_file
     # 서버 실행 시 입력한 argument 파싱
     p = argparse.ArgumentParser()
@@ -207,11 +206,6 @@ def main():
         cfg.use_blip = False
     if args.blip_model is not None:
         cfg.blip_model = args.blip_model
-
-    # 3) Celery worker용으로 env에 직렬화해서 공유
-    os.environ["PIPELINE_CFG_JSON"] = json.dumps(
-        cfg.model_dump() if hasattr(cfg, "model_dump") else cfg.__dict__
-    )
 
     uvicorn.run(create_app(cfg), host=args.host, port=args.port, reload=args.reload)
 

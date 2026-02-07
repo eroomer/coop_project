@@ -30,13 +30,24 @@ class BasicUser(HttpUser):
     #     # /health 시도
     #     r = self.client.get("/health", name="GET /health")
 
+    # @task
+    # def analyze_test(self):
+    #     req_id = f"locust-{uuid.uuid4().hex}"
+    #     payload = {
+    #         "request_id": req_id,
+    #         "image_id": "base_001.jpg",
+    #         "image_base64": IMAGE_B64,
+    #         "requested_at": datetime.now(timezone.utc).isoformat(),
+    #     }
+    #     self.client.post("/v1/analyze", json=payload, name="POST /v1/analyze")
+
     @task
-    def analyze_test(self):
+    def analyze_async_test(self):
         req_id = f"locust-{uuid.uuid4().hex}"
         payload = {
             "request_id": req_id,
-            "image_id": "base_001.jpg",
+            "image_id": "base/base_001.jpg",
             "image_base64": IMAGE_B64,
             "requested_at": datetime.now(timezone.utc).isoformat(),
         }
-        self.client.post("/v1/analyze", json=payload, name="POST /v1/analyze")
+        self.client.post("/v1/analyze_async", json=payload, name="POST /v1/analyze_async")

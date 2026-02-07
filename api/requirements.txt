@@ -30,4 +30,3 @@ pillow
 
 # For asynchronous worker
 celery[redis]
-redis

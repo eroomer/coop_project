@@ -1,0 +1,11 @@
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+*.pt
+*.pth
+*.onnx
+datasets
+data_tools
+docs

@@ -2,7 +2,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from celery.result import AsyncResult
+from celery import AsyncResult
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 

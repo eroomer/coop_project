@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 5) 파이썬 의존성 설치 (캐시 효율 위해 requirements 먼저 복사)
 COPY requirements.docker.txt /app/requirements.docker.txt
-RUN pip install --no-cache-dir -r /app/requirements.docker.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /app/requirements.docker.txt
 
 # 6) 프로젝트 소스 복사
 COPY . /app

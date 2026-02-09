@@ -1,26 +1,30 @@
 from __future__ import annotations
+
 import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional, Callable, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 API_DIR = Path(__file__).resolve().parents[2]  # api/
 DB_PATH = API_DIR / "storage" / "app.db"
 
 T = TypeVar("T")
 
+
 class DBError(RuntimeError):
     """Database access error."""
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(
         DB_PATH,
-        timeout=5.0,                # DB 연결 실패 시 5초간 더 시도
+        timeout=5.0,  # DB 연결 실패 시 5초간 더 시도
         check_same_thread=False,
     )
     conn.row_factory = sqlite3.Row
     return conn
+
 
 # DB 연결을 시도하는 함수에 반복해서 사용할 수 있도록 @contextmanager 데코레이터를 사용했습니다.
 @contextmanager
@@ -35,9 +39,11 @@ def db_conn():
     finally:
         conn.close()
 
+
 def with_db(op: Callable[[sqlite3.Connection], T]) -> T:
     with db_conn() as conn:
         return op(conn)
+
 
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +74,7 @@ def init_db() -> None:
 
     with_db(_op)
 
+
 def insert_image(image_id: str, path: str, sha256: str) -> int:
     def _op(conn: sqlite3.Connection) -> int:
         cur = conn.execute(
@@ -78,12 +85,13 @@ def insert_image(image_id: str, path: str, sha256: str) -> int:
 
     return with_db(_op)
 
+
 def insert_analysis(
     request_id: str,
     image_ref_id: int,
     risk_level: str,
     objects: list[dict[str, Any]],
-    caption: str
+    caption: str,
 ) -> int:
     objects_json = json.dumps(objects, ensure_ascii=False)
 
@@ -99,9 +107,11 @@ def insert_analysis(
 
     return with_db(_op)
 
+
 def get_analysis(analysis_id: int) -> dict[str, Any] | None:
     def _op(conn: sqlite3.Connection) -> Optional[dict[str, Any]]:
-        row = conn.execute("""
+        row = conn.execute(
+            """
             SELECT
               a.id AS analysis_id,
               a.request_id AS request_id,
@@ -115,7 +125,9 @@ def get_analysis(analysis_id: int) -> dict[str, Any] | None:
             FROM analyses a
             JOIN images i ON i.id = a.image_ref_id
             WHERE a.id = ?
-        """, (analysis_id,)).fetchone()
+        """,
+            (analysis_id,),
+        ).fetchone()
 
         if row is None:
             return None

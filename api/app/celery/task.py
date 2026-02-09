@@ -2,12 +2,10 @@ import uuid
 
 # worker 시작 시 pipeline을 초기화하는 시그널
 import app.celery.signal
-
-from app.celery.app import celery_app
 import app.celery.worker_state as ws
-
+from app.celery.app import celery_app
+from app.infra.db import insert_analysis, insert_image
 from app.infra.storage import save_image_bytes
-from app.infra.db import insert_image, insert_analysis
 
 
 @celery_app.task(name="app.task.analyze_task")
@@ -17,7 +15,9 @@ def analyze_task(request_id: str, image_id: str, image_base64: str):
     (YOLO->crop->BLIP -> storage 저장 -> DB 저장)
     """
     if ws.pipeline is None:
-        raise RuntimeError("Worker pipeline is not initialized. Check celery_signals/worker init.")
+        raise RuntimeError(
+            "Worker pipeline is not initialized. Check celery_signals/worker init."
+        )
 
     # 1) AI pipeline 실행 (프로세스 내 1개 pipeline에 대해 lock 보호)
     with ws.pipeline_lock:
@@ -30,11 +30,13 @@ def analyze_task(request_id: str, image_id: str, image_base64: str):
 
     safe_objects = []
     for o in objects:
-        safe_objects.append({
-            "label": o.get("label", "unknown"),
-            "confidence": float(o.get("confidence", 0.0)),
-            "bbox_xyxy": o.get("bbox_xyxy"),
-        })
+        safe_objects.append(
+            {
+                "label": o.get("label", "unknown"),
+                "confidence": float(o.get("confidence", 0.0)),
+                "bbox_xyxy": o.get("bbox_xyxy"),
+            }
+        )
 
     # 2) 파일 저장
     rel_path, sha256 = save_image_bytes(image_bytes, ext=".jpg")

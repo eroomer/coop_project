@@ -1,21 +1,24 @@
 from __future__ import annotations
 
+import base64
+import io
 from dataclasses import dataclass
 from typing import Any, Literal
+
 from PIL import Image
-import io
-import base64
 
 Label = Literal["person", "vehicle", "fire", "smoke", "accident", "unknown"]
+
 
 # ai pipeline의 설정을 관리하기 위한 클래스입니다.
 # 데이터 관리 표준인 @dataclass 데코레이터를 사용했습니다.
 @dataclass
 class PipelineConfig:
     use_yolo: bool = True
-    yolo_model: str = "yolov8n.pt"                                # dafualt: YOLOv8 Nano
+    yolo_model: str = "yolov8n.pt"  # dafualt: YOLOv8 Nano
     use_blip: bool = True
-    blip_model: str = "Salesforce/blip-image-captioning-base"    # dafualt: BLIP Base
+    blip_model: str = "Salesforce/blip-image-captioning-base"  # dafualt: BLIP Base
+
 
 class AIPipeline:
     """
@@ -26,6 +29,7 @@ class AIPipeline:
       risk_level rule (fire/smoke/accident => high else normal)
     Default: stub mode unless dependencies installed.
     """
+
     # 모델 준비
     def __init__(self, cfg: PipelineConfig):
         self.cfg = cfg
@@ -34,6 +38,7 @@ class AIPipeline:
         if cfg.use_yolo:
             try:
                 from ultralytics import YOLO  # type: ignore
+
                 self.yolo = YOLO(cfg.yolo_model)
             except Exception:
                 self.yolo = None
@@ -42,9 +47,15 @@ class AIPipeline:
         self.blip_model = None
         if cfg.use_blip:
             try:
-                from transformers import BlipProcessor, BlipForConditionalGeneration  # type: ignore
+                from transformers import (  # type: ignore
+                    BlipForConditionalGeneration,
+                    BlipProcessor,
+                )
+
                 self.blip_processor = BlipProcessor.from_pretrained(cfg.blip_model)
-                self.blip_model = BlipForConditionalGeneration.from_pretrained(cfg.blip_model)
+                self.blip_model = BlipForConditionalGeneration.from_pretrained(
+                    cfg.blip_model
+                )
             except Exception:
                 self.blip_processor = None
                 self.blip_model = None
@@ -66,8 +77,10 @@ class AIPipeline:
         if not bbox or len(bbox) != 4:
             return pil
         x1, y1, x2, y2 = map(int, bbox)
-        x1 = max(0, x1); y1 = max(0, y1)
-        x2 = min(pil.width, x2); y2 = min(pil.height, y2)
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(pil.width, x2)
+        y2 = min(pil.height, y2)
         if x2 <= x1 or y2 <= y1:
             return pil
         return pil.crop((x1, y1, x2, y2))
@@ -94,7 +107,11 @@ class AIPipeline:
         if self.yolo is None:
             # stub: 예제용
             return [
-                {"label": "unknown", "confidence": 0.5, "bbox_xyxy": [0, 0, min(100, pil.width), min(100, pil.height)]}
+                {
+                    "label": "unknown",
+                    "confidence": 0.5,
+                    "bbox_xyxy": [0, 0, min(100, pil.width), min(100, pil.height)],
+                }
             ]
 
         results = self.yolo(pil, verbose=False)

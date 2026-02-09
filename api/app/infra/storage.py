@@ -1,7 +1,8 @@
 from __future__ import annotations
-from pathlib import Path
+
 import hashlib
 import time
+from pathlib import Path
 
 # 실제 이미지 파일 저장 (db에는 파일 경로 저장)
 
@@ -10,11 +11,14 @@ API_DIR = Path(__file__).resolve().parents[2]
 STORAGE_DIR = API_DIR / "storage"
 IMAGES_DIR = STORAGE_DIR / "images"
 
+
 def ensure_storage_dirs() -> None:
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
 
 def save_image_bytes(image_bytes: bytes, ext: str = ".jpg") -> tuple[str, str]:
     """

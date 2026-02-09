@@ -1,7 +1,5 @@
 import uuid
 
-# worker 시작 시 pipeline을 초기화하는 시그널
-import app.celery.signal
 import app.celery.worker_state as ws
 from app.celery.app import celery_app
 from app.infra.db import insert_analysis, insert_image

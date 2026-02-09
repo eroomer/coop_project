@@ -1,5 +1,6 @@
 import threading
 import uuid
+from pathlib import Path
 
 from celery.result import AsyncResult
 from fastapi import FastAPI, Request
@@ -19,7 +20,8 @@ from app.schemas import (
     ErrorCode,
 )
 
-PIPELINE_CONFIG_PATH = "/home/ljh/coop_project/api/config/pipeline_config.json"
+API_DIR = Path(__file__).resolve().parents[1]  # api/app -> api
+PIPELINE_CONFIG_PATH = str(API_DIR / "config" / "pipeline_config.json")
 
 app = FastAPI(title="3D Digital Twin AI API", version="1.1.0")
 

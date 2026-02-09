@@ -1,6 +1,7 @@
 import threading
 import uuid
 
+from celery.result import AsyncResult
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
@@ -106,7 +107,7 @@ def analyze(req: AnalyzeRequest, request: Request):
             response_id=str(uuid.uuid4()),
             ok=True,
             result=result,
-            error_code=ErrorCode.NONE,
+            error_code=None,
         )
 
     except Exception as e:
@@ -138,7 +139,7 @@ def analyze_async(req: AnalyzeRequest):
         ok=True,
         task_id=async_result.id,
         queue=queue_name,
-        error_code=ErrorCode.NONE,
+        error_code=None,
     )
 
 

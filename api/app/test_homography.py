@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import cv2
-
 from app.ai.homography import HomographyMapper
 
 # 테스트 실행 명령어: python app/test_homography.py

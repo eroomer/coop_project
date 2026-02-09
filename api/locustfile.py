@@ -1,8 +1,9 @@
-from locust import HttpUser, task, between
-from datetime import datetime, timezone
-from pathlib import Path
 import base64
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+from locust import HttpUser, between, task
 
 
 def load_image_base64() -> str:
@@ -19,11 +20,13 @@ def load_image_base64() -> str:
     img_bytes = img_path.read_bytes()
     return base64.b64encode(img_bytes).decode("ascii")
 
+
 IMAGE_B64 = load_image_base64()
+
 
 class BasicUser(HttpUser):
     host = "http://127.0.0.1:8000"
-    wait_time = between(5, 5)       # 각 유저의 요청 주기
+    wait_time = between(5, 5)  # 각 유저의 요청 주기
 
     # @task
     # def health_test(self):
@@ -50,4 +53,6 @@ class BasicUser(HttpUser):
             "image_base64": IMAGE_B64,
             "requested_at": datetime.now(timezone.utc).isoformat(),
         }
-        self.client.post("/v1/analyze_async", json=payload, name="POST /v1/analyze_async")
+        self.client.post(
+            "/v1/analyze_async", json=payload, name="POST /v1/analyze_async"
+        )

@@ -1,9 +1,13 @@
 from celery import Celery
+import json
+
+with open("/home/ljh/coop_project/api/config/celery_config.json", "r") as f:
+    celery_config = json.load(f)
 
 celery_app = Celery(
     "app",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/1",  # 결과 저장
+    broker=f"redis://{celery_config['broker_ip']}:{celery_config['broker_port']}/{celery_config['broker_db']}",
+    backend=f"redis://{celery_config['backend_ip']}:{celery_config['backend_port']}/{celery_config['backend_db']}",  # 결과 저장
 )
 
 celery_app.conf.update(

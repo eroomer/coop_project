@@ -13,13 +13,12 @@ from app.celery.app import celery_app
 
 def create_app(cfg: PipelineConfig) -> FastAPI:
     app = FastAPI(title="3D Digital Twin AI API", version="1.1.0")
-    pipeline = AIPipeline(cfg)
 
     @app.on_event("startup")
     def on_startup():
         ensure_storage_dirs()
         init_db()
-        # pipeline을 app state에 저장 (프로세스당 1개)
+        # 동기 처리를 위한 pipeline을 app state에 저장 (프로세스당 1개)
         app.state.pipeline = AIPipeline(cfg)
         # thread-safe를 위해 lock도 같이 저장
         app.state.pipeline_lock = threading.Lock()
@@ -151,7 +150,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=True,
                 result=None,
-                error_code=None,
+                error_code="PENDING",
             )
 
         # 실패
@@ -166,12 +165,12 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
         # 성공
         try:
             payload = ar.get()
-        except Exception:
+        except Exception as e:
             return AnalyzeResponse(
                 response_id=str(uuid.uuid4()),
                 ok=False,
                 result=None,
-                error_code="INTERNAL_ERROR",
+                error_code=str(e),
             )
 
         return payload

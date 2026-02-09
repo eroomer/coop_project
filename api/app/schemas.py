@@ -3,8 +3,15 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 from typing import Literal, List, Optional
 from datetime import datetime
+from enum import Enum
 
 RiskLevel = Literal["high", "normal"]
+
+class ErrorCode(Enum):
+    NONE = 0
+    INTERNAL_ERROR = 1
+    NOT_FOUND = 2
+    PENDING = 3
 
 class AnalyzeRequest(BaseModel):
     request_id: str
@@ -16,7 +23,8 @@ class AnalyzeResponse(BaseModel):
     response_id: str
     ok: bool
     result: Optional["AnalyzeResult"] = None
-    error_code: Optional[str] = None
+    error_code: ErrorCode = ErrorCode.NONE
+    error_message: Optional[str] = None
 
 class AnalyzeResult(BaseModel):
     result_id: str
@@ -35,4 +43,5 @@ class AnalyzeAsyncResponse(BaseModel):
     ok: bool
     task_id: str
     queue: str
-    error_code: str | None = None
+    error_code: ErrorCode = ErrorCode.NONE
+    error_message: Optional[str] = None

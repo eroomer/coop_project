@@ -4,7 +4,7 @@ import threading
 import uuid
 
 from app.ai.pipeline import PipelineConfig, AIPipeline
-from app.schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse
+from app.schemas import AnalyzeRequest, AnalyzeResponse, AnalyzeResult, AnalyzeAsyncResponse, ErrorCode
 from app.infra.db import init_db, insert_image, insert_analysis, get_analysis
 from app.infra.storage import ensure_storage_dirs, save_image_bytes
 
@@ -97,7 +97,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=True,
                 result=result,
-                error_code=None,
+                error_code=ErrorCode.NONE,
             )
 
         except Exception as e:
@@ -105,7 +105,8 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=False,
                 result=None,
-                error_code=f"INTERNAL_ERROR: {type(e).__name__}",
+                error_code=ErrorCode.INTERNAL_ERROR,
+                error_message=str(e),
             )
 
     @app.post('/v1/analyze_async', response_model=AnalyzeAsyncResponse)
@@ -124,7 +125,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
             ok=True,
             task_id=async_result.id,
             queue=queue_name,
-            error_code=None,
+            error_code=ErrorCode.NONE,
         )
     
     @app.get("/v1/result/{analysis_id}")
@@ -150,7 +151,7 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=True,
                 result=None,
-                error_code="PENDING",
+                error_code=ErrorCode.PENDING,
             )
 
         # 실패
@@ -159,7 +160,8 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=False,
                 result=None,
-                error_code="INTERNAL_ERROR",
+                error_code=ErrorCode.INTERNAL_ERROR,
+                error_message="task failed: celery worker",
             )
 
         # 성공
@@ -170,7 +172,8 @@ def create_app(cfg: PipelineConfig) -> FastAPI:
                 response_id=str(uuid.uuid4()),
                 ok=False,
                 result=None,
-                error_code=str(e),
+                error_code=ErrorCode.INTERNAL_ERROR,
+                error_message=str(e),
             )
 
         return payload

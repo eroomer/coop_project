@@ -1,0 +1,30 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    image: coop-api
+    ports:
+      - "8000:8000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      RELOAD: "false"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - redis
+    command: ["/app/scripts/run_api.sh"]
+
+  worker:
+    image: coop-api
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_CONCURRENCY: "2"
+      REDIS_CLEAN_ON_START: "0"
+    depends_on:
+      - redis
+    command: ["/app/scripts/run_worker.sh"]

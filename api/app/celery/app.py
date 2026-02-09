@@ -1,5 +1,6 @@
-from celery import Celery
 import json
+
+from celery import Celery
 
 with open("/home/ljh/coop_project/api/config/celery_config.json", "r") as f:
     celery_config = json.load(f)

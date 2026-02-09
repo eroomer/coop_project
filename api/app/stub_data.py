@@ -33,11 +33,15 @@ def build_stub_result(image_id: str) -> AnalyzeResponse:
     is_emergency = any(k in lower for k in EMERGENCY_KEYWORDS)
 
     if is_emergency:
-        risk_level = "high"   # RiskLevel = Literal["high", "normal"]
+        risk_level = "high"  # RiskLevel = Literal["high", "normal"]
         caption = "Emergency detected (stub)."
     else:
         risk_level = "normal"
-        caption = "Intrusion detected (stub)." if objects else "No critical events detected (stub)."
+        caption = (
+            "Intrusion detected (stub)."
+            if objects
+            else "No critical events detected (stub)."
+        )
 
     result = AnalyzeResult(
         result_id=str(uuid4()),

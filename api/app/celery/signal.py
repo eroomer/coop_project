@@ -1,7 +1,10 @@
 from pathlib import Path
+
 from celery.signals import worker_process_init
-from app.infra.config import load_cfg_from_file
+
 from app.celery.worker_state import init_pipeline_once
+from app.infra.config import load_cfg_from_file
+
 
 @worker_process_init.connect
 def _init_pipeline_on_worker_start(**kwargs):

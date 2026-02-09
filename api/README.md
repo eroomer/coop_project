@@ -62,5 +62,5 @@ api/
 ├─ locustfile.py            # locust 코드
 ├─ pipeline_config.json     # pipeline 생성 시 설정
 ├─ requirements.txt         # 프로젝트 의존성 목록
-├─ yolov8n.py               # YOLOv8 nano checkpoint
+├─ yolov8n.pt               # YOLOv8 nano checkpoint
 └─ README.md

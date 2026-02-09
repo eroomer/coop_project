@@ -1,0 +1,36 @@
+# --- Web/API ---
+fastapi==0.115.0
+starlette==0.38.6
+uvicorn==0.30.6
+python-dotenv==1.2.1
+PyYAML==6.0.3
+python-multipart
+anyio==4.12.1
+h11==0.16.0
+typing_extensions==4.15.0
+pydantic==2.8.2
+pydantic_core==2.20.1
+
+# --- Optional perf (리눅스에서만 설치됨: 도커에선 OK) ---
+uvloop==0.22.1
+httptools==0.7.1
+watchfiles==1.1.1
+websockets==15.0.1
+
+# --- Async worker ---
+celery[redis]
+
+# --- YOLOv8 / image ---
+ultralytics
+opencv-python-headless
+pillow
+
+# --- BLIP / Transformers ---
+transformers
+
+# torch는 CPU 전용 wheel을 강제 (CUDA 패키지 끌어오는 가능성 최소화)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.3.1
+
+# --- Dev/Test (운영 이미지에선 분리 권장) ---
+# locust==2.24.1

@@ -1,8 +1,6 @@
 services:
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
 
   api:
     image: coop-api
@@ -14,6 +12,10 @@ services:
       RELOAD: "false"
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      HF_TOKEN: "${HF_TOKEN}"
+    volumes:
+      # HuggingFace 캐시 고정 (재시작 시 재다운로드 방지)
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       - redis
     command: ["/app/scripts/run_api.sh"]
@@ -25,6 +27,12 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_CONCURRENCY: "2"
       REDIS_CLEAN_ON_START: "0"
+      HF_TOKEN: "${HF_TOKEN}"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       - redis
     command: ["/app/scripts/run_worker.sh"]
+
+volumes:
+  hf_cache:

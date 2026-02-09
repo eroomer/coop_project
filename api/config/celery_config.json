@@ -1,0 +1,8 @@
+{
+  "broker_ip": "localhost",
+  "broker_port": 6379,
+  "broker_db": 0,
+  "backend_ip": "localhost",
+  "backend_port": 6379,
+  "backend_db": 1
+}

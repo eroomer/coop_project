@@ -30,7 +30,7 @@ transformers
 
 # torch는 CPU 전용 wheel을 강제 (CUDA 패키지 끌어오는 가능성 최소화)
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.3.1
+torch
 
 # --- Dev/Test (운영 이미지에선 분리 권장) ---
 # locust==2.24.1

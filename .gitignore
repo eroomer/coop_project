@@ -33,3 +33,6 @@ runs/detect/
 
 # temp
 temp.txt
+
+# finetune
+finetune
